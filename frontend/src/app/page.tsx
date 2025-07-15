@@ -1,0 +1,126 @@
+"use client";
+
+import { useState } from "react";
+
+interface AnalysisResult {
+  task_id: string;
+  status: string;
+  transcript?: string;
+  sentiment?: string;
+  summary?: string;
+}
+
+export default function HomePage() {
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startAnalysis = async () => {
+    setIsLoading(true);
+    setResult(null);
+    setError(null);
+    setTaskId(null);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/analyze-call", {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to start analysis");
+
+      const data = await res.json();
+      setTaskId(data.task_id);
+      pollForResult(data.task_id);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred"
+      );
+      setIsLoading(false);
+    }
+  };
+
+  const pollForResult = (currentTaskId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/results/${currentTaskId}`
+        );
+        const data: AnalysisResult = await res.json();
+
+        if (data.status === "completed") {
+          setResult(data);
+          setIsLoading(false);
+          clearInterval(interval);
+        } else if (data.status === "not_found") {
+          throw new Error("Task not found. Please try again.");
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred"
+        );
+        setIsLoading(false);
+        clearInterval(interval);
+      }
+    }, 3000);
+  };
+
+  return (
+    <main className="flex min-h-screen flex-col items-center p-12 bg-gray-50">
+      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm">
+        <h1 className="text-4xl font-bold text-center text-gray-800">
+          AI Call Insights
+        </h1>
+        <p className="text-center text-gray-500 mt-2">
+          Click the button to analyze a sample call recording using AI.
+        </p>
+      </div>
+
+      <div className="mt-12">
+        <button
+          onClick={startAnalysis}
+          disabled={isLoading}
+          className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          {isLoading
+            ? `Analyzing... (Task ID: ${taskId})`
+            : "Analyze Sample Call"}
+        </button>
+      </div>
+
+      {error && <p className="mt-6 text-red-500">Error: {error}</p>}
+
+      {result && result.status === "completed" && (
+        <div className="mt-10 w-full max-w-4xl p-6 bg-white rounded-lg shadow-lg animate-fade-in">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">
+            Analysis Complete
+          </h2>
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-700">Sentiment</h3>
+              <p
+                className={`text-xl font-bold ${
+                  result.sentiment === "POSITIVE"
+                    ? "text-green-600"
+                    : "text-red-600"
+                }`}
+              >
+                {result.sentiment}
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-700">Summary</h3>
+              <p className="text-gray-600 italic">"{result.summary}"</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-700">
+                Full Transcript
+              </h3>
+              <p className="text-gray-800 bg-gray-100 p-4 rounded-md whitespace-pre-wrap">
+                {result.transcript}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
