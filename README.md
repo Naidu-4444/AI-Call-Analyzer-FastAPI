@@ -24,4 +24,7 @@ This project combines a Python backend for AI processing with a modern JavaScrip
 * **Language:** TypeScript
 * **Styling:** Tailwind CSS
 
-<img width="1920" height="1028" alt="image" src="https://github.com/user-attachments/assets/22b3f68a-bb1c-40d3-a03b-9bad7cea9d0b" />
+
+
+https://github.com/user-attachments/assets/97614a18-b665-43c4-960e-b5baa37ff034
+
