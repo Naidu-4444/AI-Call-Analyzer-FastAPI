@@ -3,7 +3,7 @@ import whisper
 from transformers import pipeline
 
 print("Loading AI models...")
-whisper_model = whisper.load_model("base")
+whisper_model = whisper.load_model("tiny")
 summarizer = pipeline("summarization", model="t5-small")
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 print("AI models loaded successfully!")
