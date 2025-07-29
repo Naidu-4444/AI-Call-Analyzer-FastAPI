@@ -1,7 +1,9 @@
-from fastapi import FastAPI, BackgroundTasks
+import shutil
+import time
+import os
+from fastapi import BackgroundTasks, FastAPI, UploadFile
 from pydantic import BaseModel
 import ai_services
-import time
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -15,7 +17,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"], 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -29,31 +31,42 @@ class AnalysisResult(BaseModel):
     summary: str | None = None
 
 def process_call_audio(task_id: str, audio_path: str):
-    """The main background task to process a call."""
-    transcript = ai_services.transcribe_audio(audio_path)
-    
-    analysis = ai_services.analyze_text(transcript)
-    
-    results_db[task_id] = {
-        "status": "completed",
-        "transcript": transcript,
-        "sentiment": analysis['sentiment'],
-        "summary": analysis['summary']
-    }
-    print(f"Task {task_id} completed.")
+    """The main background task to process a call and then clean up the file."""
+    try:
+        transcript = ai_services.transcribe_audio(audio_path)
+        
+        analysis = ai_services.analyze_text(transcript)
+        
+        results_db[task_id] = {
+            "status": "completed",
+            "transcript": transcript,
+            "sentiment": analysis['sentiment'],
+            "summary": analysis['summary']
+        }
+        print(f"Task {task_id} completed.")
+    except Exception as e:
+        print(f"Error processing task {task_id}: {e}")
+        results_db[task_id] = {"status": "failed", "error": str(e)}
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+            print(f"Cleaned up temporary file: {audio_path}")
 
 
 @app.post("/api/analyze-call", status_code=202)
-def analyze_call(background_tasks: BackgroundTasks):
+def analyze_call(background_tasks: BackgroundTasks, file: UploadFile):
     """
-    Starts the analysis of a mock audio call.
-    This runs as a background task.
+    Accepts an audio file upload and starts the analysis.
     """
     task_id = f"task_{int(time.time())}"
     results_db[task_id] = {"status": "processing"}
-    audio_file_path = "jfk.flac"
-    background_tasks.add_task(process_call_audio, task_id, audio_file_path)
-    
+
+    temp_file_path = f"temp_{task_id}_{file.filename}"
+    with open(temp_file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    background_tasks.add_task(process_call_audio, task_id, temp_file_path)
+
     return {"message": "Analysis started", "task_id": task_id}
 
 

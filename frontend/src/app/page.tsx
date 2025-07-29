@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 interface AnalysisResult {
   task_id: string;
@@ -15,16 +15,36 @@ export default function HomePage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+      setError(null);
+    }
+  };
 
   const startAnalysis = async () => {
+    if (!selectedFile) {
+      setError("Please select an audio file first.");
+      return;
+    }
+
     setIsLoading(true);
     setResult(null);
     setError(null);
     setTaskId(null);
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/analyze-call", {
-        method: "POST",
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/analyze-call`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
       if (!res.ok) throw new Error("Failed to start analysis");
 
       const data = await res.json();
@@ -42,7 +62,7 @@ export default function HomePage() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(
-          `http://127.0.0.1:8000/api/results/${currentTaskId}`
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/results/${currentTaskId}`
         );
         const data: AnalysisResult = await res.json();
 
@@ -70,19 +90,34 @@ export default function HomePage() {
           AI Call Insights
         </h1>
         <p className="text-center text-gray-500 mt-2">
-          Click the button to analyze a sample call recording using AI.
+          Upload your own audio file to get an AI-powered analysis.
         </p>
       </div>
+      <div className="mt-12 flex flex-col items-center gap-4">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="audio/*"
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="px-6 py-3 bg-white text-gray-700 border border-gray-300 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition-colors"
+        >
+          {selectedFile ? "Change File" : "Choose an Audio File"}
+        </button>
 
-      <div className="mt-12">
+        {selectedFile && (
+          <p className="text-gray-600">Selected: {selectedFile.name}</p>
+        )}
+
         <button
           onClick={startAnalysis}
-          disabled={isLoading}
+          disabled={isLoading || !selectedFile}
           className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
         >
-          {isLoading
-            ? `Analyzing... (Task ID: ${taskId})`
-            : "Analyze Sample Call"}
+          {isLoading ? `Analyzing... (Task ID: ${taskId})` : "Analyze Call"}
         </button>
       </div>
 
